@@ -1,0 +1,977 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <string.h>
+#include <math.h>
+#pragma warning(disable:4996)
+#define NombreDeCartes 32
+#define TRUE 1
+#define FALSE 0
+#define SORTIE_DE_BOUCLE 42
+
+typedef struct
+{
+	int victory_black;
+	int victory_red;
+	int defeat_black;
+	int defeat_red;
+
+}Victory_Defeat;
+
+typedef struct
+{
+	int niveau;
+	int partie_en_cours;
+	int paquet_rouge[52];
+	int paquet_noir[52];
+	int taille_paquet_rouge;
+	int taille_paquet_noir;
+}memoire_type;
+//-------------------------Mémoire
+memoire_type charger_partie()
+{
+	int i;
+	memoire_type memoire;
+	FILE* fichier = NULL;
+	fichier = fopen("memoire.txt", "r");
+
+	fscanf_s(fichier, "niveau :%d ", &memoire.niveau);
+	fscanf_s(fichier, "taille paquet rouge :%d", &memoire.taille_paquet_rouge);
+	for (i = 0; i < memoire.taille_paquet_rouge; i++)
+	{
+		fscanf_s(fichier, "%d ", &memoire.paquet_rouge[i]);
+	}
+	fscanf_s(fichier, "taille paquet noir:%d", &memoire.taille_paquet_noir);
+	for (i = 0; i < memoire.taille_paquet_noir; i++)
+	{
+		fscanf_s(fichier, "%d ", &memoire.paquet_noir[i]);
+	}
+
+	fclose(fichier);
+	return (memoire);
+}
+void sauvegarder_partie(int taille_paquet_rouge, int *paquet_rouge, int taille_paquet_noir, int *paquet_noir, int niveau)
+{
+	int i;
+	FILE* fichier = NULL;
+	fichier = fopen("memoire.txt", "w");
+
+	fprintf(fichier, "niveau:%d ", niveau);
+	fprintf(fichier, "taille paquet rouge:%d ", taille_paquet_rouge);
+	for (i = 0; i < taille_paquet_rouge; i++)
+	{
+		fprintf(fichier, "%d ", paquet_rouge[i]);
+	}
+	fprintf(fichier, "taille paquet noir:%d ", taille_paquet_noir);
+	for (i = 0; i < taille_paquet_noir; i++)
+	{
+		fprintf(fichier, "%d ", paquet_noir[i]);
+	}
+
+	fclose(fichier);
+}
+//------------------------Invisible
+int compare_tableau(int *a_comparer, int *comparant, int taille_comparant)
+{
+	int i = 0;
+	for (i = 0; i < taille_comparant; i++)
+	{
+		if (a_comparer[i] != comparant[i])
+		{
+			return(FALSE);
+		}
+	}
+	return (TRUE);
+
+}
+int calcul_rentabilite(int *paquet, int taille_paquet)
+{
+	int i = 0, rentabilite = 0;
+	for (i = 0; i < 5; i++)
+	{
+		if (paquet[i] == 7)
+			rentabilite += 100;
+		else if ((paquet[i] == 6))
+			rentabilite += 20;
+		else if (paquet[i] == 5)
+			rentabilite += 10;
+		else if ((paquet[i] == 4) || (paquet[i] == 3))
+			rentabilite += 2;
+		else
+			rentabilite += 0;
+	}
+	return(rentabilite);
+}
+int compare_chaine_de_caractere(char *a_comparer, char *comparant)
+{
+	int i = 0;
+	for (i = 0; i < strlen(comparant); i++)
+	{
+		if (a_comparer[i] != comparant[i])
+		{
+			return(FALSE);
+		}
+	}
+	return (TRUE);
+
+}
+void Victory(int *paquet_gagnant, int *paquet_perdant, int taille_paquet_gagnant, int taille_paquet_perdant)
+{
+	//Initialisation dse variables
+	int i = 0, temp = 0, j = 0;
+	//Faire descendre la carte en position 1 à la dernière position
+	for (i = 0; i < taille_paquet_gagnant - 1; i++)
+	{
+		temp = paquet_gagnant[i];
+		paquet_gagnant[i] = paquet_gagnant[i + 1];
+		paquet_gagnant[i + 1] = temp;
+	}
+	//paquet_gagnant = (int*)realloc(paquet_gagnant, ((taille_paquet_gagnant)+1) * sizeof(int)); //Avait des probléme donc a été retiré
+	paquet_gagnant[taille_paquet_gagnant] = paquet_perdant[0]; //Mettre la carte numéro 1 du paquet perdant à la fin de celui du paquet gagnant
+
+															   //-------------------------------------------------------
+															   //Faire descendre la carte en position 1 à la dernière position
+	for (i = 0; i < taille_paquet_perdant; i++)
+	{
+		temp = paquet_perdant[i];
+		paquet_perdant[i] = paquet_perdant[i + 1];
+		paquet_perdant[i + 1] = temp;
+	}
+	//paquet_perdant = (int*)realloc(paquet_perdant, ((taille_paquet_perdant)-1) * sizeof(int)); //Avait des probléme donc a été retiré
+}
+Victory_Defeat bataille(int *paquet_rouge, int *paquet_noir, int compteur_egalite, int taille_paquet_rouge, int taille_paquet_noir)
+{
+	//Initialisation des variables
+	int i = 0;
+	Victory_Defeat score;
+
+	score.victory_black = 0;
+	score.victory_red = 0;
+	score.defeat_black = 0;
+	score.defeat_red = 0;
+
+	for (i = 0; i <= compteur_egalite; i++) //cette boucle for avec la variable "compteur_egalite" permet de gérer le cas des égalités
+	{
+		if (paquet_rouge[compteur_egalite] < paquet_noir[compteur_egalite])  // Joueur noir a gagner 
+		{
+			Victory(paquet_noir, paquet_rouge, taille_paquet_noir, taille_paquet_rouge);
+			score.defeat_red++;
+			score.victory_black++;
+
+		}
+		else if (paquet_noir[compteur_egalite] < paquet_rouge[compteur_egalite]) // joueur rouge a gagner 
+		{
+			Victory(paquet_rouge, paquet_noir, taille_paquet_rouge, taille_paquet_noir);
+			score.victory_red++;
+			score.defeat_black++;
+		}
+		else
+			i++; //sortir de la boucle for en cas d'égalité
+	}
+	if (paquet_noir[compteur_egalite] == paquet_rouge[compteur_egalite])// cas de l'egalite (on utilise un if et non un else car cela ce trouve en dehor da la boucle for 
+	{
+		{
+			compteur_egalite += 2;
+			if (compteur_egalite > taille_paquet_noir)
+			{
+				score.defeat_black = taille_paquet_noir;
+				return(score);
+			}
+			else if (compteur_egalite > taille_paquet_rouge)
+			{
+				score.defeat_red = taille_paquet_rouge;
+				return(score);
+			}
+			score = bataille(paquet_rouge, paquet_noir, compteur_egalite, taille_paquet_rouge, taille_paquet_noir);
+			compteur_egalite = 0;
+		}
+	}
+	return (score);
+}
+//-------------------------------------------Mélange
+void perfect_shuffle_out(int size, int*paquet)
+{
+	//Initialisation des variables
+	int i = 0, compteur_1 = 0, compteur_2 = 0;
+
+	int *paquet_1_temp = NULL, *paquet_2_temp = NULL;
+
+	paquet_1_temp = (int*)malloc((int)(size / 2) * sizeof(int));
+	paquet_2_temp = (int*)malloc((int)(size / 2) * sizeof(int));
+	int temp = paquet[size - 1];
+
+	//Initialisation des paquet temporaires	
+	for (i = 0; i < size / 2; i++)
+	{
+		paquet_1_temp[i] = paquet[i];
+	}
+	for (i = size / 2; i < size; i++)
+	{
+		paquet_2_temp[i - (size / 2)] = paquet[i];
+	}
+	//réécriture du paquet principal
+	for (i = 0; i < size; i++)
+	{
+		if (i % 2 == 0)
+		{
+			paquet[i] = paquet_1_temp[compteur_1];
+			compteur_1++;
+		}
+		else
+		{
+			paquet[i] = paquet_2_temp[compteur_2];
+			compteur_2++;
+		}
+	}
+	//Cas ou le paquet n'est pas paire 
+	if (size % 2 != 0)
+	{
+		paquet[size - 1] = temp;
+	}
+}
+void perfect_shuffle_in(int size, int*paquet)
+{
+	//Initialisation des variables
+	int i = 0, compteur_1 = 0, compteur_2 = 0;
+
+	int *paquet_1_temp = NULL, *paquet_2_temp = NULL;
+
+	paquet_1_temp = (int*)malloc((int)(size / 2) * sizeof(int));
+	paquet_2_temp = (int*)malloc((int)(size / 2) * sizeof(int));
+
+	//Initialisation des paquetleaux temporaires	
+	for (i = 0; i < size / 2; i++)
+	{
+		paquet_1_temp[i] = paquet[i];
+	}
+	for (i = size / 2; i < size; i++)
+	{
+		paquet_2_temp[i - (size / 2)] = paquet[i];
+	}
+	//réécriture du paquetleau principal
+	for (i = 0; i < size; i++)
+	{
+		if (i % 2 == 0)
+		{
+			paquet[i] = paquet_2_temp[compteur_2];
+			compteur_2++;
+		}
+		else
+		{
+			paquet[i] = paquet_1_temp[compteur_1];
+			compteur_1++;
+		}
+	}
+}
+void full_random(int size, int *paquet)
+{
+	int i = 0, random2 = 0, random1 = 0, random_ini = 0, temp;
+
+	random_ini = rand() % (108 - 54) + 54;  //108 borne maximal et 54 minimal
+
+
+	for (i = 0; i < random_ini; i++)
+	{
+		random1 = rand() % size;
+		random2 = rand() % size;
+
+		if (random1 != random2)
+		{
+			temp = paquet[random1];
+			paquet[random1] = paquet[random2];
+			paquet[random2] = temp;
+		}
+	}
+}
+void coupe(int size, int nbr_de_coupe, int *paquet)
+{
+	//Initialisation des variables
+	int *paquet_temp = NULL, *paquet_coupe = NULL;
+	int i, temp = 0, j = 0, compteur = 0, error = size / nbr_de_coupe;
+	paquet_temp = (int*)malloc((int)(size) * sizeof(int));
+	paquet_coupe = (int*)malloc((int)(size) * sizeof(int));
+	if (size < nbr_de_coupe)
+	{
+		full_random(size, paquet);
+	}
+	//Décrémentation du gros paquet
+	else
+	{
+		for (i = size - 1; i >= 0; i--)
+		{
+			paquet_temp[temp] = paquet[i];
+			temp++;
+			if (temp == error)  // temp correspond à "la taille du paquet"/"le nombre de coupes" alors on "creer" un petit paquet
+			{
+				for (j = 1; j < 1 + temp; j++) //Décrémentation du petit paquet ( pour l'avoir dans le bon sens )
+				{
+					paquet_coupe[compteur] = paquet_temp[temp - j];  //Remplissage du paquet à renvoyer
+					compteur++;
+				}
+				temp = 0;  //Réinitialisation
+			}
+		}
+		for (i = 0; i < error; i++)
+		{
+			paquet_coupe[size - error + i] = paquet[i];  //cas ou la "taille" / "nombre de coup" n'est pas exacte 
+		}
+		for (i = 0; i < size; i++)
+		{
+			paquet[i] = paquet_coupe[i];
+		}
+	}
+}
+//----------------------------------------IA
+void ia_2(int *paquet, int taille_paquet)
+{
+	int possibilite[10], paquet_possible[52], i, rentabilite, j, position;
+
+	//---------------------------------
+	for (i = 2; i < 5; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		coupe(taille_paquet, i, paquet_possible);
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += paquet_possible[j];
+		}
+		possibilite[i - 2] = rentabilite;
+	}
+	//--------------------------------------
+	for (i = 0; i < 7; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		for (j = 0; j < i + 1; j++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet_possible);
+		}
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += paquet_possible[j];
+		}
+		possibilite[i + 3] = rentabilite;
+	}
+	rentabilite = 0;
+	for (i = 0; i < 10; i++)
+	{
+		if (possibilite[i] > rentabilite)
+		{
+			rentabilite = possibilite[i];
+			position = i;
+		}
+	}
+	if (position < 3)
+		coupe(taille_paquet, position + 2, paquet);
+	else
+		for (i = 0; i < position + 2 - 3; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet);
+		}
+}
+void ia_3(int *paquet, int taille_paquet)
+{
+	int possibilite[10], paquet_possible[52], i, rentabilite, j, position;
+
+	//---------------------------------
+	for (i = 2; i < 5; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		coupe(taille_paquet, i, paquet_possible);
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += exp(paquet_possible[j]);
+		}
+		possibilite[i - 2] = rentabilite;
+	}
+	//--------------------------------------
+	for (i = 0; i < 7; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		for (j = 0; j < i + 1; j++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet_possible);
+		}
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += exp(paquet_possible[j]);
+		}
+		possibilite[i + 3] = rentabilite;
+	}
+	rentabilite = 0;
+	for (i = 0; i < 10; i++)
+	{
+		if (possibilite[i] > rentabilite)
+		{
+			rentabilite = possibilite[i];
+			position = i;
+		}
+	}
+	if (position < 3)
+		coupe(taille_paquet, position + 2, paquet);
+	else
+		for (i = 0; i < position + 2 - 3; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet);
+		}
+}
+void ia_4_shuffle(int *paquet, int taille_paquet)
+{
+	int possibilite[10], paquet_possible[52], i, rentabilite, j, position;
+
+	//---------------------------------
+	for (i = 2; i < 5; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		coupe(taille_paquet, i, paquet_possible);
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += paquet_possible[j];
+		}
+		possibilite[i - 2] = rentabilite;
+	}
+	//--------------------------------------
+	for (i = 0; i < 7; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		for (j = 0; j < i + 1; j++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet_possible);
+		}
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += paquet_possible[j] + 2;
+		}
+		possibilite[i + 3] = rentabilite;
+	}
+	rentabilite = 0;
+	for (i = 0; i < 10; i++)
+	{
+		if (possibilite[i] > rentabilite)
+		{
+			rentabilite = possibilite[i];
+			position = i;
+		}
+	}
+	if (position < 3)
+		coupe(taille_paquet, position + 2, paquet);
+	else
+		for (i = 0; i < position + 2 - 3; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet);
+		}
+}
+void ia_4_coupe(int *paquet, int taille_paquet)
+{
+	int possibilite[10], paquet_possible[52], i, rentabilite, j, position;
+
+	//---------------------------------
+	for (i = 2; i < 5; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		coupe(taille_paquet, i, paquet_possible);
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += paquet_possible[j] + 2;
+		}
+		possibilite[i - 2] = rentabilite;
+	}
+	//--------------------------------------
+	for (i = 0; i < 7; i++)
+	{
+		for (j = 0; j < taille_paquet; j++)
+		{
+			paquet_possible[i] = paquet[i];
+		}
+		rentabilite = 0;
+		for (j = 0; j < i + 1; j++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet_possible);
+		}
+		for (j = 0; j < 5; j++)
+		{
+			rentabilite += paquet_possible[j];
+		}
+		possibilite[i + 3] = rentabilite;
+	}
+	rentabilite = 0;
+	for (i = 0; i < 10; i++)
+	{
+		if (possibilite[i] > rentabilite)
+		{
+			rentabilite = possibilite[i];
+			position = i;
+		}
+	}
+	if (position < 3)
+		coupe(taille_paquet, position + 2, paquet);
+	else
+		for (i = 0; i < position + 2 - 3; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet);
+		}
+}
+void ia_5(int *paquet, int taille_paquet)
+{
+	int *possibilite, paquet_possible[52], i, rentabilite, j = 0, position, longueur_possibilite = 0, temp;
+	possibilite = (int*)malloc((int)(1) * sizeof(int));
+	for (i = 0; i < taille_paquet; i++)
+	{
+		paquet_possible[i] = paquet[i];
+	}
+	//---------------------------------
+	perfect_shuffle_out(taille_paquet, paquet_possible);
+	while (compare_tableau(paquet_possible, paquet, taille_paquet) == FALSE && longueur_possibilite < 50)
+	{
+		rentabilite = 0;
+		for (i = 0; i < longueur_possibilite; i++)
+		{
+			perfect_shuffle_out(taille_paquet, paquet_possible);
+		}
+		longueur_possibilite++;
+		possibilite = (int*)realloc(possibilite, (longueur_possibilite) * sizeof(int));
+		rentabilite = calcul_rentabilite(paquet_possible, taille_paquet);
+		possibilite[longueur_possibilite - 1] = rentabilite;
+	}
+	temp = longueur_possibilite;
+	perfect_shuffle_in(taille_paquet, paquet_possible);
+	while (compare_tableau(paquet_possible, paquet, taille_paquet) == FALSE && longueur_possibilite < 50 + temp)
+	{
+		rentabilite = 0;
+		for (i = 0; i < longueur_possibilite; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet_possible);
+		}
+		longueur_possibilite++;
+		possibilite = (int*)realloc(possibilite, (longueur_possibilite) * sizeof(int));
+		rentabilite = calcul_rentabilite(paquet_possible, taille_paquet);
+		possibilite[longueur_possibilite - 1] = rentabilite;
+	}
+	rentabilite = 0;
+	for (i = 0; i < longueur_possibilite; i++)
+	{
+		if (possibilite[i] >= rentabilite)
+		{
+			rentabilite = possibilite[i];
+			position = i;
+		}
+	}
+	if (position > temp)
+	{
+		for (i = 0; i < position + 2 - temp; i++)
+		{
+			perfect_shuffle_out(taille_paquet, paquet);
+		}
+	}
+	else
+	{
+		for (i = 0; i < position + 2; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet);
+		}
+	}
+}
+void ia_6_passif(int *paquet, int taille_paquet)
+{
+	int *possibilite, paquet_possible[52], i, rentabilite, j = 0, position, longueur_possibilite = 0, temp;
+	possibilite = (int*)malloc((int)(1) * sizeof(int));
+	for (i = 0; i < taille_paquet; i++)
+	{
+		paquet_possible[i] = paquet[i];
+	}
+	//---------------------------------
+	perfect_shuffle_out(taille_paquet, paquet_possible);
+	while (compare_tableau(paquet_possible, paquet, taille_paquet) == FALSE && longueur_possibilite<50)
+	{
+		rentabilite = 0;
+		for (i = 0; i < longueur_possibilite; i++)
+		{
+			perfect_shuffle_out(taille_paquet, paquet_possible);
+		}
+		longueur_possibilite++;
+		possibilite = (int*)realloc(possibilite, (longueur_possibilite) * sizeof(int));
+		rentabilite = calcul_rentabilite(paquet_possible, taille_paquet);
+		possibilite[longueur_possibilite - 1] = rentabilite;
+	}
+	temp = longueur_possibilite;
+	perfect_shuffle_in(taille_paquet, paquet_possible);
+	while (compare_tableau(paquet_possible, paquet, taille_paquet) == FALSE && longueur_possibilite<50 + temp)
+	{
+		rentabilite = 0;
+		for (i = 0; i < longueur_possibilite; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet_possible);
+		}
+		longueur_possibilite++;
+		possibilite = (int*)realloc(possibilite, (longueur_possibilite) * sizeof(int));
+		rentabilite = calcul_rentabilite(paquet_possible, taille_paquet);
+		possibilite[longueur_possibilite - 1] = rentabilite;
+	}
+	rentabilite = 10000;
+	for (i = 0; i < longueur_possibilite; i++)
+	{
+		if (possibilite[i] < rentabilite)
+		{
+			rentabilite = possibilite[i];
+			position = i;
+		}
+	}
+	if (position > temp)
+	{
+		for (i = 0; i < position + 2 - temp; i++)
+		{
+			perfect_shuffle_out(taille_paquet, paquet);
+		}
+	}
+	else
+	{
+		for (i = 0; i < position + 2; i++)
+		{
+			perfect_shuffle_in(taille_paquet, paquet);
+		}
+	}
+}
+int faire_jouer_ia(int niveau, int paquet_noir, int taille_paquet_noir, int compteur_pour_ia)
+{
+	int random=0;
+	if (niveau == 2)
+		ia_2(paquet_noir, taille_paquet_noir);
+	else if (niveau == 3)
+		ia_3(paquet_noir, taille_paquet_noir);
+	else if (niveau == 4)
+	{
+		if (rand() % 2 == 0)
+			ia_4_coupe(paquet_noir, taille_paquet_noir);
+		else
+			ia_4_shuffle(paquet_noir, taille_paquet_noir);
+	}
+	else if (niveau == 5)
+		ia_5(paquet_noir, taille_paquet_noir);
+	else if (niveau == 6)
+	{
+		compteur_pour_ia++;
+		if (compteur_pour_ia < 3)
+			ia_6_passif(paquet_noir, taille_paquet_noir);
+		else
+			ia_5(paquet_noir, taille_paquet_noir);
+		if (compteur_pour_ia == 7)
+			compteur_pour_ia = 0;
+	}
+	else if (niveau == 7)
+	{
+		while (random == 0)
+		{
+			random = rand() % 8;
+		}
+		faire_jouer_ia(random, paquet_noir, taille_paquet_noir, compteur_pour_ia);
+	}
+}
+//-------------------------------------------Visible
+void afficher_paquet(char* message, int *paquet, int taille_paquet)
+{
+	int i = 0;
+	if (message != NULL)
+		printf("%s", message);
+	for (i = 0; i < taille_paquet; i++)
+	{
+		if (paquet[i] == 7)
+			printf("Ace ");
+		else if (paquet[i] == 6)
+			printf("King ");
+		else if (paquet[i] == 5)
+			printf("Queen ");
+		else if (paquet[i] == 4)
+			printf("Jack ");
+		else if (paquet[i] == 3)
+			printf("ten ");
+		else if (paquet[i] == 2)
+			printf("nine ");
+		else if (paquet[i] == 1)
+			printf("eight ");
+		else if (paquet[i] == 0)
+			printf("seven ");
+		else
+			printf("????? ");
+		if (i != 4)
+			printf("| ");
+		else
+			printf("||| ");
+	}
+	printf("\n");
+}
+void Laisser_le_joueur_melanger(int*paquet, int taille_paquet, char*reponse_en_caractere)
+{
+	int longueur_chaine = 0, reponse_en_chiffre = 0, i;
+	for (i = 0; i<1; i++)
+	{
+		if (compare_chaine_de_caractere(reponse_en_caractere, "cut")) //coupe
+		{
+			printf("\n In how many deck do you want to cut ? (between 2 and 5)\n");
+			scanf_s("%d", &reponse_en_chiffre);
+			do
+			{
+				if (reponse_en_chiffre > 1 && reponse_en_chiffre < 6)
+				{
+					coupe(taille_paquet, reponse_en_chiffre, paquet);
+					reponse_en_chiffre = 145;
+				}
+				else
+					printf("\n i don't understand \n");
+			} while (reponse_en_chiffre != 145);
+		}
+		else if (compare_chaine_de_caractere(reponse_en_caractere, "random")) //random
+		{
+			full_random(taille_paquet, paquet);
+		}
+		else if (compare_chaine_de_caractere(reponse_en_caractere, "shuffle")) //shuffle
+		{
+			printf("\n How many shuffle do you want to do ? (no limit)\n");
+			scanf_s("%d", &reponse_en_chiffre);
+			for (i = 0; i < reponse_en_chiffre; i++)
+			{
+				printf("\n for the shuffle number %d an 'in' or an 'out'? :", i+1);
+				fgets(reponse_en_caractere, 10, stdin);
+				if (compare_chaine_de_caractere(reponse_en_caractere, "in"))
+					perfect_shuffle_in(taille_paquet, paquet);
+				else if (compare_chaine_de_caractere(reponse_en_caractere, "out"))
+					perfect_shuffle_out(taille_paquet, paquet);
+				else
+				{
+					printf("\n i don't understand \n");
+					i--;
+				}
+			}
+		}
+		else
+		{
+			printf("\n don't understand");
+			scanf("%s", &reponse_en_caractere);
+			i--;
+		}
+	}
+}
+void projet(memoire_type memoire)
+{
+	//Initialisation des variables
+	int paquet_noir[NombreDeCartes] = { NULL }, paquet_rouge[NombreDeCartes] = { NULL }, i, taille_paquet_noir, taille_paquet_rouge, compteur = 5, sortie_de_boucle = FALSE, compteur_pour_ia = 0;
+	Victory_Defeat score;
+	char reponse_en_caractere[10];
+	srand(time(NULL));
+	//paquet_noir = (int*)malloc((int)(NombreDeCartes / 2) * sizeof(int)); La Partie allocation mémoire a ete retire car il y avait un problème que nous ne comprenions aps
+	//paquet_rouge = (int*)malloc((int)(NombreDeCartes / 2) * sizeof(int));
+	if (memoire.taille_paquet_noir == 0)
+	{
+		taille_paquet_noir = (int)(NombreDeCartes / 2);
+		taille_paquet_rouge = (int)(NombreDeCartes / 2);
+		//Initialisation des paquets
+		for (i = 0; i < (int)(NombreDeCartes / 2); i += 2)
+		{
+			paquet_noir[i] = i / 2;
+			paquet_noir[i + 1] = i / 2;
+			paquet_rouge[i] = i / 2;
+			paquet_rouge[i + 1] = i / 2;
+		}
+		//Mélange aléatoire des paquets
+		full_random(taille_paquet_noir, paquet_noir);
+		full_random(taille_paquet_rouge, paquet_rouge);
+	}
+	else  //Le joueur reprend une partie déjà commencé
+	{
+		taille_paquet_noir = memoire.taille_paquet_noir;
+		taille_paquet_rouge = memoire.taille_paquet_rouge;
+		for (i = 0; i < taille_paquet_noir; i++)
+		{
+			paquet_noir[i] = memoire.paquet_noir[i];
+		}
+		for (i = 0; i < taille_paquet_rouge; i++)
+		{
+			paquet_rouge[i] = memoire.paquet_rouge[i];
+		}
+		printf("\nHere is the game how you left it :\n");
+	}
+	afficher_paquet("\nRed deck: ", paquet_rouge, taille_paquet_rouge);
+	afficher_paquet("\nBlack deck: ", paquet_noir, taille_paquet_noir);
+
+	//---------------------------------------------------------------
+	system("pause");
+	//--------------------------------------------------------------------
+	while (((taille_paquet_noir) != 0) && ((taille_paquet_rouge) != 0)) //tan que l'un des deux paquet n'est pas finit, le jeu continue 
+	{
+		if (compteur == 5) //Mélanger les cartes tout les 5 coups
+		{
+			printf("\nRed player mix your cards (if you want to stop the game write 'STOP'):\n");
+			printf("\n ------------------------------ \n Write:\n-'cut' for a cut \n-'shuffle' for a shuffle\n-'random' for mixing your cards randomly \n");
+			scanf("%s", &reponse_en_caractere);
+			if (compare_chaine_de_caractere(reponse_en_caractere, "STOP") == TRUE)
+			{
+				sauvegarder_partie(taille_paquet_rouge, paquet_rouge, taille_paquet_noir, paquet_noir, memoire.niveau);
+				taille_paquet_noir = 0;
+				taille_paquet_rouge = 0;
+				sortie_de_boucle = TRUE;
+			}
+			else
+			{
+				Laisser_le_joueur_melanger(paquet_rouge, taille_paquet_rouge, reponse_en_caractere);
+			}
+			if (sortie_de_boucle == FALSE)
+			{
+				if (memoire.niveau == 0)
+				{
+					printf("\nBlack player mix your cards :\n");
+					printf("\n ------------------------------ \n Write:\n-'cut' for a cut \n-'shuffle' for a shuffle\n-'random' for mixing your cards randomly \n");
+					scanf("%s", &reponse_en_caractere);
+					Laisser_le_joueur_melanger(paquet_noir, taille_paquet_noir, reponse_en_caractere);
+				}
+				else
+					compteur_pour_ia = faire_jouer_ia(memoire.niveau, paquet_noir, taille_paquet_noir, compteur_pour_ia);
+
+				afficher_paquet("\nRed deck: ", paquet_rouge, taille_paquet_rouge);
+				afficher_paquet("\nBlack deck: ", paquet_noir, taille_paquet_noir);
+				system("pause");
+				system("cls");
+				compteur = 0;
+			}
+		}
+		if (sortie_de_boucle == FALSE)
+		{
+			score = bataille(paquet_rouge, paquet_noir, 0, taille_paquet_rouge, taille_paquet_noir);  //La variable score permet de faire varier la taille des paquets
+			 //--------------------------------------------------------------------
+			taille_paquet_rouge += score.victory_red - score.defeat_red;
+			taille_paquet_noir += score.victory_black - score.defeat_black;
+			if (score.victory_red > score.victory_black)
+				printf("\n Red victory \n");
+			else if (score.victory_black > score.victory_red)
+				printf("\n Black victory \n");
+			else
+				printf("\n Even \n");
+			//---------------------------------------------------------------------
+			system("pause");
+			system("cls");
+			afficher_paquet("\nRed deck: ", paquet_rouge, taille_paquet_rouge);
+			afficher_paquet("\nBlack deck: ", paquet_noir, taille_paquet_noir);
+			system("pause");
+			compteur++;
+		}
+	}
+	printf("\n -------------------------Game over------------------------- \n");
+	if (taille_paquet_rouge > taille_paquet_noir)
+		printf("---------------------Red Player win----------------------- \n");
+	else if (taille_paquet_rouge < taille_paquet_noir)
+		printf("--------------------BLack Player win---------------------- \n");
+	else
+		printf("------------------Game saved succesfuly------------------- \n");
+	//-----------------------------------------------------------------------------
+}
+void faire_parler_ia(int niveau)
+{
+	if (niveau == 1)
+		printf("(It's just a training dummy .... you know, it is not supposed to talk)\n");
+	if (niveau == 2)
+		printf("(Youngster Ben)\nHi !\nI like shorts!\nThey're delightfully comfy and easy to wear!\nShould i make this battle short?\n");
+	else if (niveau == 3)
+		printf("(Shen Mu)\nIf you know the ennemy.\nAnd if you know yourself.\nYou need not fear the results of a hundred battles. \n");
+	else if (niveau == 4)
+		printf("(Isack Godel)\nI talk, I smile, I laugh too.\nBut, be careful when i'm silent.");
+	else if (niveau == 5)
+		printf("(Raymond Poulidor)\nEven if i end up loosing...\nI will not be mad");
+	else if (niveau == 6)
+		printf("(Mordekaiser)\nMORDEKAISER ES EL NUMERO UNO \n\nHUEHUEHUEHUEHUEHUEHUEHUEHUEHUEHUEHUEHUEHUEHUEHUE");
+	else if (niveau == 7)
+		printf("(L)\nYou can call me what you like, but i will be taking your cake.");
+}
+memoire_type affichage_début_de_partie()
+{
+	memoire_type memoire;
+	memoire.niveau = 0;
+	memoire.partie_en_cours = 2;
+	memoire.taille_paquet_rouge = 0;
+	memoire.paquet_noir[52] = 0;
+	memoire.taille_paquet_noir = 0;
+	memoire.paquet_rouge[52] = 0;
+
+	int sorti_car_do_while_marche_pas = FALSE;
+	char reponse_en_caractere[4];
+	printf("\n //////////////////////////////////////////////////////////////////////////////////////////////////////////// \n                      WELCOME\nRules:You and your opponent have the same 'cards' but in a different order \n      at the begining of the game and every 5 round you and your opponent have to mix your deck.\n      When the value of your 'card' (the one at the beginning of your deck) is above the one of your opponent, you win.\n      When you win the card at the top of you deck will be moved in last position\n      while the first 'card' of your opponent will be added to you deck.\n////////////////////////////////////////////////////////////////////////////////////////////////////////////\n ");
+	//------------------------------- Permet de savoir si l'utilisateur veut reprendre une partie ou non----------------------------
+	while (sorti_car_do_while_marche_pas == FALSE)
+	{
+		printf("\nDo you want to resume an ongoing game ? (yes or no question)\n");
+		scanf("%s", &reponse_en_caractere);
+		if (compare_chaine_de_caractere(reponse_en_caractere, "yes") == TRUE)
+		{
+			sorti_car_do_while_marche_pas = TRUE;
+			memoire.partie_en_cours = TRUE;
+		}
+		else if (compare_chaine_de_caractere(reponse_en_caractere, "no") == TRUE)
+		{
+			sorti_car_do_while_marche_pas = TRUE;
+			memoire.partie_en_cours = FALSE;
+		}
+	}
+	//------------------------Cas ou l'utilisateur fait une partie à partir de 0 ---------------------------------------
+	if (memoire.partie_en_cours == FALSE)
+	{
+		sorti_car_do_while_marche_pas = FALSE;
+		while (sorti_car_do_while_marche_pas == FALSE)
+		{
+			printf("\n \nDo you want to play against :\n-0 for another player\n-1 for a training dummy\n-2 for Youngster Ben \n-3 for Shen Mu\n-4 for Isack Godel\n-5 for Raymond Poulidor \n-6 for Mordekaiser\n-7 for L \n(If you chose to play against the IA you will be the red player)\n");
+			scanf_s("%d", &memoire.niveau);
+			if ((memoire.niveau < 8) && (memoire.niveau > -1))
+				sorti_car_do_while_marche_pas = TRUE;
+		}
+		system("cls");
+		faire_parler_ia(memoire.niveau);
+		printf("\n\n\n");
+		system("pause");
+		printf("\n\n\n");
+		printf("It's time to DUDUDUDUdududu...DUEL\n\n");
+		system("pause");
+		system("cls");
+		return(memoire);
+	}
+
+	//------------------------Cas ou l'utilisateur veut ouvrir une partie déjà comencer ---------------------------------------
+	else
+	{
+		memoire = charger_partie();
+		return(memoire);
+	}
+}
+//-----------------------------------------MAIN
+void main()
+{
+	memoire_type memoire = affichage_début_de_partie();;
+	projet(memoire);
+
+	system("pause");
+}
+
+
+
